@@ -35,6 +35,95 @@ The `eval/` directory provides an evaluation tool for perplexity testing, zero-s
 
 ## Why GPTQ? 
 
+### Overview
+
+This project explores **GPTQ** quantization combined with the **K-Quants** provided by the [GGUF](https://github.com/ggerganov/llama.cpp) format.
+The main goal is to extend GPTQ with K-Quants (`Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`) to improve model quality and enable the first generation of **GPTQ-GGUF models**. This is non-trivial because of the non-trivial complexity of some GGUF formats. 
+
+#### Differences between GPTQ and K-Quants?
+
+* **GPTQ**: flexible, supports symmetric/asymmetric quantization and varying group sizes.
+* **K-Quants**: asymmetric (except for Q3\_K and Q5\_K), fixed group sizes, double-quantization of scales.
+
+By combining the two:
+
+* We can calculate K-Quant scales and offsets without using an i-matrix.
+* Then apply GPTQ for further improvements.
+* This results in higher-quality GGUF quantized models.
+
+For background, see the original `GPTQ` paper and the description of K-Quants in the [llama.cpp repo](https://github.com/ggerganov/llama.cpp) or in the `Mind the Gap: A Practical Attack on GGUF Quantization` paper.
+
+---
+
+### Execution
+
+To quantize a model, use the provided script:
+
+```bash
+bash run_quant.sh "Q4_K"
+```
+
+You can override defaults via environment variables (e.g. `CUDA_VISIBLE_DEVICES=0,1`) or by editing the script.
+
+### Important Parameters
+
+* `--quantizable_modules '.*layers.*((q|k|v|o|gate|up|down)_proj)$'`
+  A **regex** defining which modules to quantize. Here it targets all projection layers inside transformer blocks (`q, k, v, o, gate, up, down`).
+
+* `--pre_block_modules model.embed_tokens`
+  Modules applied **before** transformer blocks (e.g. embeddings).
+
+* `--block_modules model.layers`
+  The main transformer **block stack**.
+
+* `--post_block_modules lm_head`
+  Modules applied **after** transformer blocks (e.g. final classifier / output head).
+
+* `--quant_non_block_modules`
+  If set, quantizes non-transformer block modules as well (pre_block_modules + post_block_modules).
+
+* `--default_bit_width "${BITS:-Q4_K}"`
+  Default quantization scheme if no custom config is provided (e.g. `Q4_K`, `Q6_K`).
+
+* `--bit_width_configuration "${BIT_WIDTH_CONFIGURATION:-./config.json}"`
+  JSON file allowing **per-layer bitwidth control**. Example:
+
+  ```json
+  {
+      "q_proj": "Q3_K",
+      "k_proj": "Q2_K",
+      "v_proj": "Q4_K",
+      "o_proj": "Q5_K",
+      "gate_proj": "Q6_K",
+      "down_proj": "Q3_K",
+      "up_proj": "Q4_K",
+      "embed_tokens": "Q6_K",
+      "lm_head": "Q6_K"
+  }
+  ```
+
+---
+
+### Packing into GGUF
+
+After quantization, results are stored in a directory (containing quantized weights and scale/offset metadata).
+To package this into a `.gguf` file, use the adapted packing script:
+
+```bash
+python pack_gptq_into_gguf.py ./path-to-original-model \
+    --dir_model_quant ./path-to-quantized-model \
+    --outfile ./model.gguf \
+    --outtype f16
+```
+
+Notes:
+
+* Q3\_K and Q5\_K are symmetric → shifted only during packing.
+* Other bitwidths are shifted already during quantization.
+* See llama.cpp code for detailed handling of K-Quant differences.
+
+---
+
 ## Complete Workflow Example
 
 Here's an example using `meta-llama/Llama-3.2-1B-Instruct` to demonstrate the full quantization optimization process:
