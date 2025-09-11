@@ -36,8 +36,8 @@ from mistral_common.tokens.tokenizers.sentencepiece import (
     SentencePieceTokenizer,
 )
 
-from src.packing_utils import pack_Q2K, pack_Q3K, pack_Q4K, pack_Q5K, pack_Q6K 
-
+from compressed_tensors.compressors import unpack_from_int32
+from safetensors.torch import load_file as load_safetensors
 
 logger = logging.getLogger("hf-to-gguf")
 
@@ -96,7 +96,7 @@ class ModelBase:
     is_mistral_format: bool = False
     disable_mistral_community_chat_template: bool = False
 
-    def __init__(self, dir_model: Path, dir_model_quant: Path, ftype: gguf.LlamaFileType, fname_out: Path, *, is_big_endian: bool = False,
+    def __init__(self, dir_model: Path, dir_model_quant: Path, q_type: gguf.GGMLQuantizationType, ftype: gguf.LlamaFileType, fname_out: Path, *, is_big_endian: bool = False,
                  use_temp_file: bool = False, eager: bool = False,
                  metadata_override: Path | None = None, model_name: str | None = None,
                  split_max_tensors: int = 0, split_max_size: int = 0, dry_run: bool = False,
@@ -109,6 +109,8 @@ class ModelBase:
 
         self.dir_model = dir_model
         self.dir_model_quant = dir_model_quant
+        self.config_quant = AutoConfig.from_pretrained(dir_model_quant)
+        self.qtype = q_type
         self.ftype = ftype
         self.fname_out = fname_out
         self.is_big_endian = is_big_endian
@@ -278,15 +280,20 @@ class ModelBase:
     # some models need extra generated tensors (like rope_freqs)
     def generate_extra_tensors(self) -> Iterable[tuple[str, Tensor]]:
         return ()
-        
+
     def prepare_tensors(self):
         max_name_len = max(len(s) for _, s in self.tensor_map.mapping.values()) + len(".weight,")
 
-        index_map = {
-            folder.name: folder
-            for folder in self.dir_model_quant.iterdir()
-            if folder.is_dir()
-        }
+        index_map = {}
+        try:
+            with open(self.dir_model_quant / "model.safetensors.index.json", 'r', encoding='utf-8') as f:
+                index_map = json.load(f)
+            index_map = index_map["weight_map"]
+        except:
+            weight_map = {}
+            for path in self.dir_model_quant.glob("*.safetensors"):
+                weight_map.update({key: path.name for key in load_safetensors(path).keys()})
+            index_map = weight_map
 
         for name, data_torch in chain(self.generate_extra_tensors(), self.get_tensors()):
             if name.endswith((".attention.masked_bias", ".attention.bias", ".rotary_emb.inv_freq")):
@@ -302,40 +309,34 @@ class ModelBase:
                     bid = int(part)
                     break
 
-            base = name.removesuffix(".weight")
-            has_packed_quant = base in index_map
+            has_packed_quant = name.replace(".weight", ".weight_packed") in index_map
 
             for new_name, curr in self.modify_tensors(data_torch, name, bid):
                 if has_packed_quant:
-                    qpath = self.dir_model_quant / index_map[base] / "data.pth"
-                    quantized_data = torch.load(str(qpath), map_location="cpu", weights_only=True)
-                    data_qtype = gguf.GGMLQuantizationType(quantized_data.get("q_type"))
+                    qpath = self.dir_model_quant / index_map.get(name.replace(".weight", ".weight_packed"))
+                    quantized_data = load_safetensors(qpath)
+                    data_qtype = self.qtype
 
-                    qweight = quantized_data.get("qweight")
-                    super_group_scale = quantized_data.get("super_group_scale")
-                    super_group_zero  = quantized_data.get("super_group_zero")
-                    group_scale_quant = quantized_data.get("group_scale_quant")
-                    group_zero_quant  = quantized_data.get("group_zero_quant")
+                    qweight = quantized_data[name.replace(".weight", ".weight_packed")]
+                    shape = quantized_data[name.replace(".weight", ".weight_shape")]
+                    scales = quantized_data[name.replace(".weight", ".weight_scale")]
+                    # .weight_zero_point & .weight_g_idx should be ignored and not needed as we can only pack
+                    # symmetric and non-reordered models
 
-                    _, qweight            = self.modify_tensors(qweight,            name, bid)[0]
-                    _, super_group_scale  = self.modify_tensors(super_group_scale,  name, bid)[0]
-                    _, super_group_zero   = self.modify_tensors(super_group_zero,   name, bid)[0]
-                    _, group_scale_quant  = self.modify_tensors(group_scale_quant,  name, bid)[0]
-                    _, group_zero_quant   = self.modify_tensors(group_zero_quant,   name, bid)[0]
+                    # Apply modify_tensors
+                    _, qweight = self.modify_tensors(
+                        unpack_from_int32(qweight, self.config_quant.quantization_config["config_groups"]["group_0"]["weights"]["num_bits"], shape), 
+                        name, 
+                        bid
+                    )[0]
+                    _, scales = self.modify_tensors(scales, name, bid)[0]
 
                     try:
-                        if data_qtype == gguf.GGMLQuantizationType.Q2_K:
-                            data = pack_Q2K(qweight, super_group_scale, group_scale_quant, super_group_zero, group_zero_quant)
-                        elif data_qtype == gguf.GGMLQuantizationType.Q3_K:
-                            data = pack_Q3K(qweight, super_group_scale, group_scale_quant)
-                        elif data_qtype == gguf.GGMLQuantizationType.Q4_K:
-                            data = pack_Q4K(qweight, super_group_scale, group_scale_quant, super_group_zero, group_zero_quant)
-                        elif data_qtype == gguf.GGMLQuantizationType.Q5_K:
-                            data = pack_Q5K(qweight, super_group_scale, group_scale_quant, super_group_zero, group_zero_quant)
-                        elif data_qtype == gguf.GGMLQuantizationType.Q6_K:
-                            data = pack_Q6K(qweight, super_group_scale, group_scale_quant)
-                        else:
-                            raise gguf.QuantError
+                        match data_qtype:
+                            case gguf.GGMLQuantizationType.Q4_0:
+                                data = pack_Q4_0(qweight, scales)
+                            case default:
+                                raise gguf.QuantError
                     except gguf.QuantError as e:
                         logger.warning("%s, %s", e, "falling back to F16")
                         data_qtype = gguf.GGMLQuantizationType.F16
@@ -8711,6 +8712,33 @@ class KimiVLModel(MmprojModel):
 
         return [] # skip other tensors
 
+###### PACKING LOGIC ######
+
+def pack_Q4_0(qweight, scales):
+    """
+    Pack gptq saved in compressed-tensors format into Q4_0 format
+    """
+    rows, cols = qweight.shape
+    BLOCK_SIZE, TYPE_SIZE = gguf.GGML_QUANT_SIZES[gguf.GGMLQuantizationType.Q4_0]
+    bpr = cols // BLOCK_SIZE
+    n_blocks = rows * bpr
+
+    # Pack blocks
+    qs = torch.clamp(qweight.to(torch.int8) + 8, min=0, max=15)
+    qs = qs.reshape(n_blocks, 32)
+    qs = qs.reshape(n_blocks, 2, 16)
+    qs = qs[:, 0, :] | (qs[:, 1, :] << 4)
+
+    # Pack scales
+    scales = scales.to(torch.float16)
+    scales = torch.repeat_interleave(scales, 4, dim=1)
+    scales_bytes = scales.reshape(n_blocks, 1).view(torch.uint8)
+
+    # Combine
+    blocks = torch.cat([scales_bytes, qs], dim=1).to(torch.uint8)
+
+    return blocks.reshape(rows, bpr * TYPE_SIZE).view(torch.uint8).contiguous().numpy()
+
 ###### CONVERSION LOGIC ######
 
 
@@ -8799,6 +8827,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--outfile", type=Path,
         help="path to write to; default: based on input. {ftype} will be replaced by the outtype.",
+    )
+    parser.add_argument(
+        "--qtype", type=str, choices=["q4_0"], default="q4_0",
+        help="quantization format"
     )
     parser.add_argument(
         "--outtype", type=str, choices=["f32", "f16", "bf16", "q8_0", "tq1_0", "tq2_0", "auto"], default="f16",
@@ -8963,6 +8995,10 @@ def main() -> None:
         "auto": gguf.LlamaFileType.GUESSED,
     }
 
+    qtype_map: dict[str, gguf.GGMLQuantizationType] = {
+        "q4_0": gguf.GGMLQuantizationType.Q4_0,
+    }
+
     is_split = args.split_max_tensors > 0 or args.split_max_size != "0"
     if args.use_temp_file and is_split:
         logger.error("Error: Cannot use temp file when splitting")
@@ -8987,6 +9023,7 @@ def main() -> None:
 
     with torch.inference_mode():
         output_type = ftype_map[args.outtype]
+        qtype = qtype_map[args.qtype]
         model_type = ModelType.MMPROJ if args.mmproj else ModelType.TEXT
         hparams = ModelBase.load_hparams(dir_model, is_mistral_format)
         if not is_mistral_format:
@@ -9003,7 +9040,7 @@ def main() -> None:
         else:
             model_class = MistralModel
 
-        model_instance = model_class(dir_model, args.dir_model_quant, output_type, fname_out,
+        model_instance = model_class(dir_model, args.dir_model_quant, qtype, output_type, fname_out,
                                      is_big_endian=args.bigendian, use_temp_file=args.use_temp_file,
                                      eager=args.no_lazy,
                                      metadata_override=args.metadata, model_name=args.model_name,

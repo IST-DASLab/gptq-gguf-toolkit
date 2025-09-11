@@ -122,6 +122,22 @@ Notes:
 * Other bitwidths are shifted already during quantization.
 * See llama.cpp code for detailed handling of K-Quant differences.
 
+#### Additional Resources
+
+We provide a simple script to export existing GPTQ models stored in the compressed tensors format into GGUF using Q4_0 quants. Therefore, this script currently supports models that do not use dynamic reordering of scales during (de-)quantization and that are symmetric within 4-bit quantization. These are the most commonly produced models 
+
+Support for asymmetric quantization can be added with minimal effort, and the script has been designed to make such extensions straightforward. The implementation is adapted from the original GPTQ packing logic.
+
+```bash
+python pack_compressed_tensors_into_gguf.py ./path-to-original-model \
+    --dir_model_quant ./path-to-quantized-model \
+    --outfile ./model.gguf \
+    --qtype q4_0 \
+    --outtype f16
+```
+
+Notably, the script can also be adapted to support other storage formats that use different naming conventions for the individual parts of the quantized weights. To do this, simply adjust the mappings in lines 316–332 of the script.
+
 ---
 
 ## Complete Workflow Example
