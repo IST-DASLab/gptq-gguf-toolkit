@@ -545,6 +545,15 @@ The zero-shot benchmark results confirm that these perplexity improvements trans
 
 These results validate the toolkit's ability to push beyond traditional uniform quantization limitations, enabling practitioners to deploy more capable models under strict resource constraints.
 
+## Future Work
+Several directions could enhance the toolkit's capabilities:
+
+- Mixture-of-Experts (MoE) Support: Extend quantization and full search support for MoE architectures like Mixtral, Qwen MoE and DeepSeek
+- More ready-to-use models: Distribute more non-uniform models quantized with our techniques, eliminating the need for users to run the full pipeline.
+- Calibration Selection: Selecting optimal calibration datasets based on model characteristics and deployment scenarios.
+- Hardware-Aware Optimization: Integrate device-specific constraints into EvoPress search to optimize quantization for target hardware (edge devices, GPUs, etc.).
+
+
 ## Environment
 
 ```
