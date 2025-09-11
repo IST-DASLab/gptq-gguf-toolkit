@@ -564,7 +564,9 @@ These results validate the toolkit's ability to push beyond traditional uniform 
 ---
 
 
-## Citations
+## Acknowledgments 
+
+The DASLab GGUF Toolkit was developed jointly by Max Kleinegger and Michael Helcig, with support from the full lab team. 
 
 ```bibtex
 @article{frantar-gptq,
