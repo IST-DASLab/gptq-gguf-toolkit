@@ -12,7 +12,7 @@ The toolkit enables researchers and practitioners to move beyond uniform quantiz
 
 ## Workflow Overview
 
-The toolkit follows a three-stage pipeline for optimized GGUF quantization:
+The toolkit follows a three-stage pipeline for optimized GGUF quantization, creating the database for the search, searching and reassambling the model from the found configuration. 
 
 ### 1. Uniform Quantization
 The goal of this first step is to create an accurate quantized model with uniform per-layer quantization. Specifically, it enables to create quantized model variants using either:
@@ -354,8 +354,6 @@ python lmeval.py \
     --output_path baseline_results.json
 ```
 
-Looking at your evaluation data, I'll add a comprehensive results section to your README that highlights the performance improvements achieved through the advanced quantization techniques. Here's the proposed addition:
-
 ## Evaluation
 
 This section presents evaluation results for Llama 3.2 1B Instruct and more importantly Llama 3.1 8B Instruct, where we compare our quantization methods against Unsloth's Dynamic 2.0 GGUFs, which represent some of the most popular non-uniform GGUF quantizations available in the community.
@@ -542,8 +540,6 @@ The evaluation results demonstrate several insights:
 **Importance Matrix Integration** provides the most significant improvements, particularly at lower bitwidths. The EvoPress-kQuant-Imatrix-3 configuration achieves remarkably better perplexity than standard Q3_K_S quantization (24.05 vs 30.45 on C4), demonstrating the value of importance-aware quantization for aggressive compression scenarios.
 
 The zero-shot benchmark results confirm that these perplexity improvements translate to better downstream task performance, with advanced quantization methods maintaining higher accuracy across reasoning and comprehension tasks while achieving equivalent compression ratios.
-
-These results validate the toolkit's ability to push beyond traditional uniform quantization limitations, enabling practitioners to deploy more capable models under strict resource constraints.
 
 ## Future Work
 Several directions could enhance the toolkit's capabilities:
