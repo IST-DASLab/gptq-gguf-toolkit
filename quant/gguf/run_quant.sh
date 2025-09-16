@@ -9,7 +9,8 @@ set -e
 DEFAULT_QUANT_TYPES="Q2_K Q3_K Q4_K Q5_K Q6_K Q8_K IQ1_S IQ2_XXS IQ2_XS IQ2_S IQ2_M IQ3_XXS IQ3_S IQ3_M IQ4_NL IQ4_XS"
 
 # Default paths
-K_QUANT_BINARY="$HOME/bin/llama/llama-quantize"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+K_QUANT_BINARY="$SCRIPT_DIR/../../third_party/llama.cpp/build/bin/llama-quantize"
 DEFAULT_OUTPUT_DIR="./quantized_models"
 
 print_status() {
