@@ -13,6 +13,13 @@ The toolkit enables researchers and practitioners to move beyond uniform quantiz
 ## Installation
 
 ```
+# clone the repo
+git clone https://github.com/IST-DASLab/gptq-gguf-toolkit.git
+cd gptq-gguf-toolki
+
+# fetch the submodules (currently llama.cpp)
+git submodule update --init --recursive
+
 # install uv (first time only)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # create a fresh project -- 3.12 supported
@@ -21,6 +28,36 @@ source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
+### llama.cpp dependency
+
+In `quant/gguf`, quantization requires access to the `llama-quantize` binary. There are two ways to obtain it:
+
+1. Obtain the [latest built binaries](https://github.com/ggml-org/llama.cpp/releases) for your platform (Linux, MacOS, ...)
+
+```
+# example with Linux on release b6484
+wget https://github.com/ggml-org/llama.cpp/releases/download/b6484/llama-b6484-bin-ubuntu-x64.zip
+
+# you should obtain a build folder
+unzip llama-b6484-bin-ubuntu-x64.zip
+ 
+# move it to the submodule
+mv build/ third_party/llama.cpp/
+```
+
+2. If there are no binaries for your platform, you can build llama.cpp from scratch ([build guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md))
+
+```
+cd third_party/llama.cpp
+
+## CPU build
+cmake -B build
+cmake --build build --config Release -j 8
+
+## Hopper GPUs build
+cmake -B build -DGGML_CUDA=ON -DLLAMA_CURL=OFF -DCMAKE_CUDA_ARCHITECTURES="90" -DBUILD_SHARED_LIBS=OFF
+cmake --build build --config Release -j 8
+```
 
 ## Workflow Overview
 
