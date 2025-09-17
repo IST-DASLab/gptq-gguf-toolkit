@@ -9,3 +9,4 @@ tqdm-multiprocess==0.0.11
 transformers==4.56.1
 lm-eval==0.4.9.1
 wandb==0.21.0
+sentencepiece
