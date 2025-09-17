@@ -10,6 +10,9 @@ This repository bridges that gap by providing DASLab's state-of-the-art model co
 
 The toolkit enables researchers and practitioners to move beyond uniform quantization, systematically exploring mixed-precision configurations that achieve better quality-compression tradeoffs. By bringing advanced compression research to the GGUF ecosystem, we aim to democratize access to efficient, high-quality quantized models.
 
+**Our intent is to provide an open source implementation of GGUF dynamic quantization that enables non-uniform bitwidth optimization, with performance on par with existing methods.** This previously existed only in proprietary tools and fills a gap for the community, allowing lossless or near-lossless models at low bitwidths with OSS methods.
+
+
 ## Workflow Overview
 
 The toolkit follows a three-stage pipeline for optimized GGUF quantization, creating the database for the search, searching and reassambling the model from the found configuration. 
