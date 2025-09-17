@@ -127,7 +127,7 @@ def parse_args():
         "--attn_implementation",
         type=str,
         default=None,
-        choices=["eager", "sdpa", "flash_attention_2"],
+        # choices=["eager", "sdpa", "flash_attention_2"],
         help="Attention implementation for both teacher and student models: eager, sdpa, or flash_attention_2",
     )
     parser.add_argument("--cpu_offload_modules", action="store_true", help="whether to offload modules to CPU.")
