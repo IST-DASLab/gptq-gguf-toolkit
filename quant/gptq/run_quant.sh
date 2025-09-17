@@ -27,14 +27,14 @@ torchrun --nnodes=1 --nproc-per-node=$NUM_GPUS --master_port $MASTER_PORT quant.
     --rel_damp "${REL_DAMP:-0.01}" \
     --block_size "${BLOCK_SIZE:-128}" \
     --default_bit_width "${BITS:-Q4_K}" \
-    --bit_width_configuration "${BIT_WIDTH_CONFIGURATION:-./config.json}" \
     --rmin "${RMIN:--1.0}" \
     --rdelta "${RDELTA:-0.1}" \
     --nstep "${NSTEP:-20}" \
     --dtype "${DTYPE:-auto}" \
     --seed "${SEED:-0}" \
-    --attn_implementation "${ATTN_IMPL:-}" \
     --eval_perplexity \
     --eval_sequence_length "${EVAL_SEQ_LEN:-2048}" \
     --verbose \
-    --save_dir "${SAVE_DIR:-/./quantized_model}" \
+    --save_dir "${SAVE_DIR:-./quantized_model}" \
+    # --bit_width_configuration "${BIT_WIDTH_CONFIGURATION:-./config.json}" \
+

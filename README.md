@@ -10,6 +10,55 @@ This repository bridges that gap by providing DASLab's state-of-the-art model co
 
 The toolkit enables researchers and practitioners to move beyond uniform quantization, systematically exploring mixed-precision configurations that achieve better quality-compression tradeoffs. By bringing advanced compression research to the GGUF ecosystem, we aim to democratize access to efficient, high-quality quantized models.
 
+## Installation
+
+```
+# clone the repo
+git clone https://github.com/IST-DASLab/gptq-gguf-toolkit.git
+cd gptq-gguf-toolki
+
+# fetch the submodules (currently llama.cpp)
+git submodule update --init --recursive
+
+# install uv (first time only)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# create a fresh project -- 3.12 supported
+uv venv --python 3.12 
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+### llama.cpp dependency
+
+In `quant/gguf`, quantization requires access to the `llama-quantize` binary. There are two ways to obtain it:
+
+1. Obtain the [latest built binaries](https://github.com/ggml-org/llama.cpp/releases) for your platform (Linux, MacOS, ...)
+
+```
+# example with Linux on release b6484
+wget https://github.com/ggml-org/llama.cpp/releases/download/b6484/llama-b6484-bin-ubuntu-x64.zip
+
+# you should obtain a build folder
+unzip llama-b6484-bin-ubuntu-x64.zip
+ 
+# move it to the submodule
+mv build/ third_party/llama.cpp/
+```
+
+2. If there are no binaries for your platform, you can build llama.cpp from scratch ([build guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md))
+
+```
+cd third_party/llama.cpp
+
+## CPU build
+cmake -B build
+cmake --build build --config Release -j 8
+
+## Hopper GPUs build
+cmake -B build -DGGML_CUDA=ON -DLLAMA_CURL=OFF -DCMAKE_CUDA_ARCHITECTURES="90" -DBUILD_SHARED_LIBS=OFF
+cmake --build build --config Release -j 8
+```
+
 ## Workflow Overview
 
 The toolkit follows a three-stage pipeline for optimized GGUF quantization, creating the database for the search, searching and reassambling the model from the found configuration. 
@@ -549,23 +598,6 @@ Several directions could enhance the toolkit's capabilities:
 - Calibration Selection: Selecting optimal calibration datasets based on model characteristics and deployment scenarios.
 - Hardware-Aware Optimization: Integrate device-specific constraints into EvoPress search to optimize quantization for target hardware (edge devices, GPUs, etc.).
 
-
-## Environment
-
-```
-- datasets 4.0.0
-- gguf 0.17.1
-- numpy 2.3.2
-- pandas 2.3.1
-- torch 2.8.0
-- torchaudio 2.7.1
-- torchvision 0.22.1
-- tqdm 4.67.1
-- tqdm-multiprocess 0.0.11
-- transformers 4.56.0.dev0
-- lm-eval 0.4.9.1
-- wandb 0.21.0
-```
 ---
 
 

@@ -26,7 +26,10 @@ if TYPE_CHECKING:
     from torch import Tensor
 
 if 'NO_LOCAL_GGUF' not in os.environ:
-    sys.path.insert(1, str(Path(__file__).parent / 'gguf-py'))
+    gguf_py_path = Path(__file__).parents[2] / 'third_party' / 'llama.cpp' / 'gguf-py'
+    if not gguf_py_path.exists():
+        raise FileNotFoundError(f"GGUF Python bindings not found at {gguf_py_path}")
+    sys.path.insert(1, str(gguf_py_path))
 import gguf
 from gguf.vocab import MistralTokenizerType, MistralVocab
 from mistral_common.tokens.tokenizers.base import TokenizerVersion
